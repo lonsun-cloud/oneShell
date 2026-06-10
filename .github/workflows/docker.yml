@@ -2,7 +2,8 @@ name: 构建并发布 Docker 镜像
 
 on:
   push:
-    branches: [ "main" ] # 当你把代码推送到 main 分支时触发
+    branches: [ "main", "codex-contrib-refresh", "master" ] # 当你把代码推送到 main 分支时触发
+  workflow_dispatch:
 
 jobs:
   build-and-push-image:
