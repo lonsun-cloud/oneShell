@@ -1,6 +1,15 @@
 #!/bin/sh
 set -eu
 
+# 普通用户运行时尝试用 sudo 自动提权（如 Oracle Cloud 默认 opc/ubuntu 登录）
+if [ "$(id -u)" != "0" ]; then
+  if command -v sudo >/dev/null 2>&1; then
+    exec sudo -n sh "$0" "$@"
+  fi
+  echo "请使用 root 用户安装 1Shell Probe Agent（或为当前用户配置免密 sudo）" >&2
+  exit 1
+fi
+
 HOST_ID=""
 INSTALL_TOKEN=""
 SERVER_URL=""
@@ -33,11 +42,6 @@ done
 [ -n "$INSTALL_TOKEN" ] || usage
 [ -n "$SERVER_URL" ] || usage
 SERVER_URL=${SERVER_URL%/}
-
-if [ "$(id -u)" != "0" ]; then
-  echo "请使用 root 用户安装 1Shell Probe Agent" >&2
-  exit 1
-fi
 
 case "$(uname -m)" in
   x86_64|amd64) AGENT_ARCH=amd64 ;;

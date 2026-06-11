@@ -105,29 +105,33 @@ esac
   function buildFinalizeScript({ tmpBinary, tmpInstallScript, tmpProbeAmd64, tmpProbeArm64, syncToken, relayPort }) {
     return `#!/bin/sh
 set -eu
-if [ "$(id -u)" != "0" ]; then
-  echo "请使用 root 用户安装 1Shell Probe Relay Agent" >&2
+if [ "$(id -u)" = "0" ]; then
+  SUDO=""
+elif command -v sudo >/dev/null 2>&1; then
+  SUDO="sudo -n"
+else
+  echo "请使用 root 用户安装 1Shell Probe Relay Agent（或为当前用户配置免密 sudo）" >&2
   exit 1
 fi
 if ! command -v systemctl >/dev/null 2>&1; then
   echo "当前系统不支持 systemd，暂不支持一键安装 Relay Agent" >&2
   exit 1
 fi
-mkdir -p ${shellQuote(INSTALL_DIR)} /var/lib/1shell-probe-relay
-chmod 700 /var/lib/1shell-probe-relay
-mv -f ${shellQuote(tmpBinary)} ${shellQuote(`${INSTALL_DIR}/probe-relay-agent`)}
-mv -f ${shellQuote(tmpInstallScript)} ${shellQuote(`${INSTALL_DIR}/install.sh`)}
-mv -f ${shellQuote(tmpProbeAmd64)} ${shellQuote(`${INSTALL_DIR}/probe-agent-linux-amd64`)}
-mv -f ${shellQuote(tmpProbeArm64)} ${shellQuote(`${INSTALL_DIR}/probe-agent-linux-arm64`)}
-chmod 755 ${shellQuote(`${INSTALL_DIR}/probe-relay-agent`)} ${shellQuote(`${INSTALL_DIR}/install.sh`)} ${shellQuote(`${INSTALL_DIR}/probe-agent-linux-amd64`)} ${shellQuote(`${INSTALL_DIR}/probe-agent-linux-arm64`)}
-cat > ${shellQuote(CONFIG_FILE)} <<CONFIG_EOF
+$SUDO mkdir -p ${shellQuote(INSTALL_DIR)} /var/lib/1shell-probe-relay
+$SUDO chmod 700 /var/lib/1shell-probe-relay
+$SUDO mv -f ${shellQuote(tmpBinary)} ${shellQuote(`${INSTALL_DIR}/probe-relay-agent`)}
+$SUDO mv -f ${shellQuote(tmpInstallScript)} ${shellQuote(`${INSTALL_DIR}/install.sh`)}
+$SUDO mv -f ${shellQuote(tmpProbeAmd64)} ${shellQuote(`${INSTALL_DIR}/probe-agent-linux-amd64`)}
+$SUDO mv -f ${shellQuote(tmpProbeArm64)} ${shellQuote(`${INSTALL_DIR}/probe-agent-linux-arm64`)}
+$SUDO chmod 755 ${shellQuote(`${INSTALL_DIR}/probe-relay-agent`)} ${shellQuote(`${INSTALL_DIR}/install.sh`)} ${shellQuote(`${INSTALL_DIR}/probe-agent-linux-amd64`)} ${shellQuote(`${INSTALL_DIR}/probe-agent-linux-arm64`)}
+$SUDO tee ${shellQuote(CONFIG_FILE)} >/dev/null <<CONFIG_EOF
 LISTEN_ADDR=0.0.0.0:${relayPort}
 SYNC_TOKEN=${syncToken}
 STATE_FILE=${STATE_FILE}
 AGENT_DIST_DIR=${INSTALL_DIR}
 CONFIG_EOF
-chmod 600 ${shellQuote(CONFIG_FILE)}
-cat > ${shellQuote(SERVICE_FILE)} <<SERVICE_EOF
+$SUDO chmod 600 ${shellQuote(CONFIG_FILE)}
+$SUDO tee ${shellQuote(SERVICE_FILE)} >/dev/null <<SERVICE_EOF
 [Unit]
 Description=1Shell Probe Relay Agent
 After=network-online.target
@@ -143,10 +147,10 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 SERVICE_EOF
-systemctl daemon-reload
-systemctl enable --now 1shell-probe-relay.service
-systemctl restart 1shell-probe-relay.service
-systemctl status 1shell-probe-relay.service --no-pager --lines=8 || true
+$SUDO systemctl daemon-reload
+$SUDO systemctl enable --now 1shell-probe-relay.service
+$SUDO systemctl restart 1shell-probe-relay.service
+$SUDO systemctl status 1shell-probe-relay.service --no-pager --lines=8 || true
 printf '\\n1Shell Probe Relay Agent installed on port %s\\n' ${shellQuote(String(relayPort))}
 `;
   }

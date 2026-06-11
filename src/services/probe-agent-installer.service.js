@@ -37,8 +37,8 @@ INTERVAL_SEC=${shellQuote(String(safeInterval))}
 INSTALL_SH="/tmp/1shell-probe-install-$$.sh"
 INSTALL_URL="$SERVER_URL/install.sh"
 
-if [ "$(id -u)" != "0" ]; then
-  echo "请使用 root 用户安装 1Shell Probe Agent" >&2
+if [ "$(id -u)" != "0" ] && ! command -v sudo >/dev/null 2>&1; then
+  echo "请使用 root 用户安装 1Shell Probe Agent（或为当前用户配置免密 sudo）" >&2
   exit 1
 fi
 
