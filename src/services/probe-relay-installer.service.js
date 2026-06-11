@@ -117,6 +117,15 @@ if ! command -v systemctl >/dev/null 2>&1; then
   echo "当前系统不支持 systemd，暂不支持一键安装 Relay Agent" >&2
   exit 1
 fi
+SVC_USER=oneshell
+if ! id "$SVC_USER" >/dev/null 2>&1; then
+  if command -v useradd >/dev/null 2>&1; then
+    $SUDO useradd --system --no-create-home --shell /usr/sbin/nologin "$SVC_USER"
+  elif command -v adduser >/dev/null 2>&1; then
+    $SUDO addgroup --system "$SVC_USER" 2>/dev/null || true
+    $SUDO adduser --system --no-create-home --shell /usr/sbin/nologin --ingroup "$SVC_USER" "$SVC_USER" 2>/dev/null || true
+  fi
+fi
 $SUDO mkdir -p ${shellQuote(INSTALL_DIR)} /var/lib/1shell-probe-relay
 $SUDO chmod 700 /var/lib/1shell-probe-relay
 $SUDO mv -f ${shellQuote(tmpBinary)} ${shellQuote(`${INSTALL_DIR}/probe-relay-agent`)}
@@ -131,6 +140,7 @@ STATE_FILE=${STATE_FILE}
 AGENT_DIST_DIR=${INSTALL_DIR}
 CONFIG_EOF
 $SUDO chmod 600 ${shellQuote(CONFIG_FILE)}
+$SUDO chown -R "$SVC_USER":"$SVC_USER" ${shellQuote(INSTALL_DIR)} /var/lib/1shell-probe-relay ${shellQuote(CONFIG_FILE)}
 $SUDO tee ${shellQuote(SERVICE_FILE)} >/dev/null <<SERVICE_EOF
 [Unit]
 Description=1Shell Probe Relay Agent
@@ -141,6 +151,17 @@ Wants=network-online.target
 Type=simple
 EnvironmentFile=${CONFIG_FILE}
 ExecStart=${INSTALL_DIR}/probe-relay-agent
+User=oneshell
+Group=oneshell
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/1shell-probe-relay
+ProtectHome=yes
+RestrictSUIDSGID=yes
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
 Restart=always
 RestartSec=5
 

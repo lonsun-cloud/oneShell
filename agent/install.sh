@@ -14,6 +14,7 @@ HOST_ID=""
 INSTALL_TOKEN=""
 SERVER_URL=""
 INTERVAL_SEC="30"
+SVC_USER="${SVC_USER:-oneshell}"
 INSTALL_DIR="/opt/1shell/probe-agent"
 CONFIG_FILE="/etc/1shell-probe-agent.env"
 SERVICE_NAME="1shell-probe-agent"
@@ -78,6 +79,16 @@ post_json() {
   fi
 }
 
+# 创建最小权限运行用户（幂等；兼容 glibc useradd 与 BusyBox/Alpine adduser）
+if ! id "$SVC_USER" >/dev/null 2>&1; then
+  if command -v useradd >/dev/null 2>&1; then
+    useradd --system --no-create-home --shell /usr/sbin/nologin "$SVC_USER"
+  elif command -v adduser >/dev/null 2>&1; then
+    addgroup -S "$SVC_USER" 2>/dev/null || true
+    adduser -S -D -H -s /sbin/nologin -G "$SVC_USER" "$SVC_USER" 2>/dev/null || adduser -S -D -H -s /sbin/nologin "$SVC_USER"
+  fi
+fi
+
 mkdir -p "$INSTALL_DIR"
 TMP_BIN="$INSTALL_DIR/.probe-agent.new"
 AGENT_URL="$SERVER_URL/agent-dist/probe-agent-linux-$AGENT_ARCH"
@@ -116,6 +127,9 @@ exec /opt/1shell/probe-agent/probe-agent
 RUNNER_EOF
 chmod 755 "$RUNNER"
 
+# 把运行所需路径移交给非 root 运行用户
+chown -R "$SVC_USER":"$SVC_USER" "$INSTALL_DIR" "$CONFIG_FILE"
+
 if command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
   cat > /etc/systemd/system/1shell-probe-agent.service <<SERVICE_EOF
 [Unit]
@@ -127,6 +141,13 @@ Wants=network-online.target
 Type=simple
 EnvironmentFile=$CONFIG_FILE
 ExecStart=$AGENT_BIN
+User=$SVC_USER
+Group=$SVC_USER
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=read-only
+RestrictSUIDSGID=yes
 Restart=always
 RestartSec=5
 
@@ -137,10 +158,11 @@ SERVICE_EOF
   systemctl enable 1shell-probe-agent.service >/dev/null
   systemctl restart 1shell-probe-agent.service
 elif command -v rc-update >/dev/null 2>&1 && command -v rc-service >/dev/null 2>&1 && [ -d /etc/init.d ]; then
-  cat > /etc/init.d/1shell-probe-agent <<'OPENRC_EOF'
+  cat > /etc/init.d/1shell-probe-agent <<OPENRC_EOF
 #!/sbin/openrc-run
 name="1Shell Probe Agent"
 command="/opt/1shell/probe-agent/probe-agent-run"
+command_user="$SVC_USER:$SVC_USER"
 command_background="yes"
 pidfile="/run/1shell-probe-agent.pid"
 output_log="/var/log/1shell-probe-agent.log"
@@ -151,6 +173,11 @@ depend() {
 }
 OPENRC_EOF
   chmod 755 /etc/init.d/1shell-probe-agent
+  # 预创建日志文件并归属运行用户（command_background 后台日志重定向需可写）
+  for lf in /var/log/1shell-probe-agent.log /var/log/1shell-probe-agent.err; do
+    : > "$lf"
+    chown "$SVC_USER":"$SVC_USER" "$lf"
+  done
   rc-update add 1shell-probe-agent default >/dev/null
   rc-service 1shell-probe-agent restart
 else
