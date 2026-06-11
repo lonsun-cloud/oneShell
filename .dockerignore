@@ -21,7 +21,11 @@ data/geoip
 
 # Generated and local-only artifacts
 agent/.gocache
-agent/dist
+agent/dist/*
+!agent/dist/probe-agent-linux-amd64
+!agent/dist/probe-agent-linux-arm64
+!agent/dist/probe-relay-agent-linux-amd64
+!agent/dist/probe-relay-agent-linux-arm64
 frontend/dist
 test
 test-results
