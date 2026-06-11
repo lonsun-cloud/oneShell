@@ -19,8 +19,8 @@ jobs:
       - name: 设置 Go 环境
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21' # 推荐 1.21 或以上版本
-          cache-dependency-path: 'agent/go.sum'
+          go-version: '1.22' # 推荐 1.21 或以上版本
+          cache: false
 
       - name: 设置 Node.js 环境
         uses: actions/setup-node@v4
